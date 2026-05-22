@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>西進武嶺雙向戰術配瓦模擬器-視覺同步匯出版</title>
+    <!-- 引入 ExcelJS 與 FileSaver，用於在瀏覽器端生成帶有精美樣式的 Excel 檔案 -->
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <style>
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; background-color: #f0f3f5; color: #333; padding: 15px; margin: 0; }
+        .container { max-width: 1050px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #1a365d; margin-top: 10px; margin-bottom: 5px; font-size: 24px; }
+        .subtitle { text-align: center; color: #718096; margin-bottom: 25px; font-size: 14px; line-height: 1.4; }
+        
+        /* 頂部設定區 RWD */
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #edf2f7; padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+        .target-box { background: #e2e8f0; border: 2px solid #4a5568; }
+        .input-group { margin-bottom: 5px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #2d3748; font-size: 14px; }
+        input, select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        
+        /* 📥 Excel 匯出區塊樣式 */
+        .excel-export-box { background: #f7fafc; border: 2px dashed #2f855a; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
+        .excel-btn { background: #38a169; color: white; border: none; padding: 12px 28px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .excel-btn:hover { background: #2f855a; }
+        .excel-tip { font-size: 12px; color: #4a5568; margin-top: 8px; display: block; }
+
+        .mode-notice { font-size: 13px; color: #2c5282; background: #ebf8ff; padding: 12px; border-radius: 6px; text-align: left; line-height: 1.5; margin-bottom: 20px; border: 1px solid #bee3f8; }
+        
+        /* 電腦版表格設定 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; table-layout: fixed; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px 8px; text-align: center; font-size: 13px; word-wrap: break-word; }
+        th { background-color: #4a5568; color: white; font-size: 14px; }
+        tr:nth-child(even) { background-color: #f7fafc; }
+        .total-row { background-color: #cbd5e0 !important; font-weight: bold; color: #1a365d; font-size: 14px; }
+        
+        /* 電腦版寬度分配 */
+        th:nth-child(1) { width: 18%; } 
+        th:nth-child(2) { width: 14%; } 
+        th:nth-child(3) { width: 15%; } 
+        th:nth-child(4) { width: 10%; } 
+        th:nth-child(5) { width: 13%; } 
+        th:nth-child(6) { width: 10%; } 
+        th:nth-child(7) { width: 11%; } 
+        th:nth-child(8) { width: 13%; } 
+
+        .watt-input { width: 70px; text-align: center; padding: 6px; border: 2px solid #3182ce; border-radius: 4px; font-weight: bold; color: #2b6cb0; font-size: 15px; }
+        .watt-input:focus { border-color: #2b6cb0; background-color: #fffaf0; }
+        
+        /* 下方動態總計看板 RWD */
+        .summary-dashboard { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; background: #2d3748; padding: 20px; border-radius: 8px; color: white; text-align: center; }
+        .summary-box { border-right: 1px solid #4a5568; }
+        .summary-box:last-child { border-right: none; }
+        .summary-title { font-size: 14px; color: #cbd5e0; margin-bottom: 5px; }
+        .summary-value { font-size: 24px; font-weight: bold; color: #63b3ed; }
+        .summary-value.highlight { color: #f6e05e; }
+        
+        .accum-cell { color: #4a5568; font-weight: 500; }
+        .accum-time-cell { color: #2b6cb0; font-weight: bold; background-color: #e6fffa; }
+        .time-input-container { display: flex; gap: 5px; align-items: center; }
+        .time-input-container input { text-align: center; }
+
+        /* 果膠補給提示樣式 */
+        .gel-badge { display: block; margin-top: 4px; background-color: #dd6b20; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: normal; text-align: center; }
+
+        /* 頁尾樣式設計 */
+        footer { text-align: center; margin-top: 30px; padding: 20px; font-size: 14px; color: #718096; line-height: 1.8; }
+        .counter-box { margin-top: 8px; display: flex; justify-content: center; align-items: center; }
+
+        /* 手機端 RWD 略 */
+        @media screen and (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            h2 { font-size: 20px; }
+            .grid { grid-template-columns: repeat(2, 1fr); padding: 15px; gap: 10px; }
+            .excel-btn { width: 100%; padding: 12px; font-size: 15px; }
+            table, thead, tbody, tfoot, th, td, tr { display: block; }
+            thead tr { position: absolute; top: -9999px; left: -9999px; }
+            tbody tr { background: #fff; border: 1px solid #cbd5e0; border-radius: 8px; margin-bottom: 15px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+            td { border: none; text-align: left; padding: 6px 10px; position: relative; padding-left: 45%; font-size: 14px; }
+            td:before { position: absolute; left: 10px; width: 40%; font-weight: bold; color: #4a5568; }
+            td:nth-of-type(1) { padding-left: 10px; background: #e2e8f0; border-radius: 4px; margin-bottom: 8px; font-size: 15px; color: #1a365d; }
+            td:nth-of-type(1):before { content: ""; }
+            td:nth-of-type(2):before { content: "分段幾何："; }
+            td:nth-of-type(3):before { content: "分段累計："; }
+            td:nth-of-type(4):before { content: "海拔衰退："; }
+            td:nth-of-type(5):before { content: "手動配瓦："; }
+            td:nth-of-type(6):before { content: "即時推力比："; }
+            td:nth-of-type(7):before { content: "該段預估時間："; }
+            td:nth-of-type(8):before { content: "累計完成時間："; }
+            .watt-input { width: 90px; padding: 5px; font-size: 16px; display: inline-block; }
+            .total-row { background-color: #e2e8f0 !important; border: 2px dashed #4a5568; border-radius: 8px; margin-top: 20px; padding: 10px; }
+            .total-row td { padding-left: 45%; }
+            .total-row td:nth-of-type(1) { padding-left: 10px; background: #4a5568; color: white; margin-bottom: 8px; }
+            .total-row td:nth-of-type(1):before { content: ""; }
+            .total-row td:nth-of-type(2):before { content: "總里程/爬升："; }
+            .total-row td:nth-of-type(3), .total-row td:nth-of-type(4), .total-row td:nth-of-type(7) { display: none; }
+            .total-row td:nth-of-type(5):before { content: "平均配瓦："; }
+            .total-row td:nth-of-type(6):before { content: "平均推力比："; }
+            .total-row td:nth-of-type(8):before { content: "總預估時間："; }
+            .summary-dashboard { grid-template-columns: 1fr; gap: 15px; padding: 15px; }
+            .summary-box { border-right: none; border-bottom: 1px solid #4a5568; padding-bottom: 12px; }
+            .summary-box:last-child { border-bottom: none; padding-bottom: 0; }
+            .summary-value { font-size: 22px; }
+            .gel-badge { display: inline-block; margin-top: 0; margin-left: 10px; vertical-align: middle; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏔️ 西進武嶺戰術配瓦模擬器</h2>
+    <div class="subtitle">手動微調各區段瓦數，即時動態推算完賽時間與累積數據</div>
+     
+    <!-- 基礎設定與逆向目標設定區 -->
+    <div class="grid">
+        <div class="input-group">
+            <label for="weight">騎士體重 (kg):</label>
+            <input type="number" id="weight" value="70" oninput="updateAllCalculations('manual')">
+        </div>
+        <div class="input-group">
+            <label for="bikeWeight">車重+裝備 (kg):</label>
+            <input type="number" id="bikeWeight" value="10" oninput="updateAllCalculations('manual')">
+        </div>
+        <div class="input-group">
+            <label for="ftp">騎士 FTP (W):</label>
+            <input type="number" id="ftp" value="220" oninput="updateAllCalculations('manual')">
+        </div>
+        <div class="input-group target-box" style="padding: 5px 10px; border-radius: 6px;">
+            <label for="target_hours" style="color: #1a365d;">🎯 目標完賽時間:</label>
+            <div class="time-input-container">
+                <input type="number" id="target_hours" value="4" min="2" max="10" oninput="updateAllCalculations('reverse')"> <span style="font-size:12px;color:#1a365d">時</span>
+                <input type="number" id="target_minutes" value="30" min="0" max="59" oninput="updateAllCalculations('reverse')"> <span style="font-size:12px;color:#1a365d">分</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excel 匯出控制區 -->
+    <div class="excel-export-box">
+        <button type="button" class="excel-btn" onclick="exportToExcelWithStyles()">📥 匯出戰術表格至 Excel (高擬真配色版)</button>
+        <span class="excel-tip">💡 點擊後下載的 Excel 檔案將同步包含與網頁完全相同的配色、框線與對齊排版，方便直接列印離線使用。</span>
+    </div>
+     
+    <div class="mode-notice">
+        💡 <b>車錶實戰應用：</b> 將黃金配瓦下的<b>「累計里程」</b>與<b>「累計完成時間」</b>記在號碼牌或上管貼紙上。6/22 比賽當天抵達補給點時，對照碼錶時間即可知道戰術執行進度！表格中也會提示您該在哪個時間點前補充果膠喔！
+    </div>
+
+    <!-- 互動表格 -->
+    <table>
+        <thead>
+            <tr>
+                <th>路段名稱<br>(起點 ➔ 終點)</th>
+                <th>分段幾何<br>(距離/爬升)</th>
+                <th>分段累計幾何<br>(總里程/總爬升)</th>
+                <th>海拔<br>衰退率</th>
+                <th>手動配瓦</th>
+                <th>即時<br>推力比</th>
+                <th>該段預估<br>時間</th>
+                <th style="background-color: #319795;">累計完成<br>時間</th>
+            </tr>
+        </thead>
+        <tbody id="segmentsTable">
+            <!-- 由 JS 動態生成 -->
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td>總計 / 平均</td>
+                <td><span id="footDistance">-</span> km<br>+<span id="footClimb">-</span>m</td>
+                <td class="accum-cell">—</td>
+                <td>-</td>
+                <td>平均：<span id="avgWatt">-</span> W</td>
+                <td>平均：<span id="avgWkg">-</span> W/kg</td>
+                <td>—</td>
+                <td class="accum-time-cell"><span id="footTime">-</span></td>
+            </tr>
+        </tfoot>
+    </table>
+     
+    <!-- 下方總累計看板 -->
+    <div class="summary-dashboard">
+        <div class="summary-box">
+            <div class="summary-title">🏁 總累計里程</div>
+            <div class="summary-value" id="totalDistance">0.00 km</div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-title">📈 總累計爬升</div>
+            <div class="summary-value" id="totalClimb">0 m</div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-title">⏱️ 預估總完成時間</div>
+            <div class="summary-value highlight" id="totalTime">0 小時 00 分鐘</div>
+        </div>
+    </div>
+</div>
+
+<!-- 頁尾與網頁計數器區塊 -->
+<footer>
+    <div>Design by Jack Yang</div>
+    <div class="counter-box">
+        <a href="https://hits.seeyoufarm.com">
+            <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fjackyang.wuling.simulator&count_bg=%234A5568&title_bg=%232D3748&title=Views&edge_flat=false"/>
+        </a>
+    </div>
+</footer>
+
+<script>
+const segmentsData = [
+    { name: "1. 埔里 ➔ 人止關", dist: 16.08, climb: 334, altitudeEff: 1.00, dbWeight: 1.15, ifMod: 1.05 },
+    { name: "2. 人止關 ➔ 霧社", dist: 5.30, climb: 294, altitudeEff: 1.00, dbWeight: 1.02, ifMod: 1.00 },
+    { name: "3. 霧社 ➔ 最高小七", dist: 11.98, climb: 797, altitudeEff: 0.97, dbWeight: 1.03, ifMod: 0.99 },
+    { name: "4. 最高小七 ➔ 翠峰", dist: 6.00, climb: 284, altitudeEff: 0.95, dbWeight: 1.03, ifMod: 0.97 },
+    { name: "5. 翠峰 ➔ 鳶峰", dist: 6.60, climb: 464, altitudeEff: 0.91, dbWeight: 1.05, ifMod: 0.94 },
+    { name: "6. 鳶峰 ➔ 昆陽", dist: 5.10, climb: 327, altitudeEff: 0.87, dbWeight: 1.08, ifMod: 0.91 },
+    { name: "7. 昆陽 ➔ 武嶺", dist: 2.10, climb: 197, altitudeEff: 0.82, dbWeight: 1.12, ifMod: 0.88 }
+];
+
+window.onload = function() {
+    buildTableStructure();
+    updateAllCalculations('reverse'); 
+};
+
+function buildTableStructure() {
+    const tableBody = document.getElementById('segmentsTable');
+    tableBody.innerHTML = ""; 
+
+    segmentsData.forEach((seg, index) => {
+        let row = `<tr>
+            <td style="text-align:left; font-weight:bold;">${seg.name}</td>
+            <td>${seg.dist.toFixed(2)} km\n+${seg.climb}m</td>
+            <td class="accum-cell" id="accum_geo_${index}">-</td>
+            <td style="color:#e53e3e;">-${Math.round((1-seg.altitudeEff)*100)}%</td>
+            <td>
+                <input type="number" class="watt-input" id="watt_${index}" value="180" oninput="updateAllCalculations('manual')"> W
+            </td>
+            <td><span id="wkg_${index}">-</span> W/kg</td>
+            <td style="font-weight:500; color:#2d3748;"><span id="time_${index}">-</span></td>
+            <td class="accum-time-cell" id="accum_time_${index}">-</td>
+        </tr>`;
+        tableBody.innerHTML += row;
+    });
+}
+
+/* 🛠️ 核心：利用 ExcelJS 實現 1:1 視覺同步導出功能 */
+async function exportToExcelWithStyles() {
+    const weight = document.getElementById('weight').value;
+    const totalTimeText = document.getElementById('totalTime').innerText.replace(/\s+/g, '');
+    
+    // 建立活頁簿與工作表
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('戰術配瓦表');
+
+    // 1. 設定工作表基本欄寬
+    worksheet.columns = [
+        { width: 24 }, // 路段名稱
+        { width: 18 }, // 分段幾何
+        { width: 22 }, // 分段累計幾何
+        { width: 14 }, // 海拔衰退率
+        { width: 16 }, // 手動配瓦
+        { width: 18 }, // 即時推力比
+        { width: 16 }, // 該段預估時間
+        { width: 35 }  // 累計完成時間與補給提示
+    ];
+
+    // 2. 寫入大標題區
+    worksheet.addRow(["西進武嶺戰術配瓦與補給規劃表"]);
+    worksheet.addRow([`騎士體重: ${weight} kg`, `預估完賽總時間: ${totalTimeText}`]);
+    worksheet.addRow([]); // 空白行
+
+    // 美化大標題
+    worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FF1A365D' } };
+    worksheet.getCell('A2').font = { size: 11, color: { argb: 'FF4A5568' } };
+
+    // 3. 寫入欄位表頭
+    const headerRow = worksheet.addRow([
+        "路段名稱", "分段幾何", "分段累計幾何", "海拔衰退率", 
+        "手動配瓦", "即時推力比", "該段預估時間", "累計完成時間"
+    ]);
+
+    // 定義框線樣式
+    const thinBorder = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+    };
+
+    // 渲染表頭顏色 (前7欄深灰，最後1欄藍綠)
+    headerRow.eachCell((cell, colNumber) => {
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = thinBorder;
+        
+        if (colNumber === 8) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF319795' } }; // 藍綠色
+        } else {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4A5568' } }; // 深灰色
+        }
+    });
+    headerRow.height = 30;
+
+    // 4. 迭代寫入每一段的數據
+    segmentsData.forEach((seg, index) => {
+        let currentWatt = document.getElementById(`watt_${index}`).value;
+        let currentWkg = document.getElementById(`wkg_${index}`).innerText;
+        let segTime = document.getElementById(`time_${index}`).innerText;
+        
+        // 解析並清理網頁 HTML 標籤，將果膠提示轉為 Excel 換行文字格式
+        let cellHtml = document.getElementById(`accum_time_${index}`).innerHTML;
+        let cleanText = cellHtml.replace(/<span class="gel-badge">/g, "\n[ ").replace(/<\/span>/g, " ]");
+
+        const dataRow = worksheet.addRow([
+            seg.name,
+            `${seg.dist.toFixed(2)} km\n+${seg.climb}m`,
+            document.getElementById(`accum_geo_${index}`).innerText,
+            `-${Math.round((1-seg.altitudeEff)*100)}%`,
+            `${currentWatt} W`,
+            `${currentWkg} W/kg`,
+            segTime,
+            cleanText
+        ]);
+
+        // 設定資料列的同步樣式與交錯背景色
+        const isEven = (index % 2 === 1);
+        dataRow.eachCell((cell, colNumber) => {
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            cell.border = thinBorder;
+            cell.font = { size: 10, color: { argb: 'FF333333' } };
+
+            // 第一欄路段文字靠左且加粗
+            if (colNumber === 1) {
+                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                cell.font = { bold: true, size: 10 };
+            }
+            // 第四欄衰退率套用紅字
+            if (colNumber === 4) {
+                cell.font = { color: { argb: 'FFE53E3E' } };
+            }
+
+            // 背景色套用：交錯底色 vs 最後一欄的淡藍綠色補給欄
+            if (colNumber === 8) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6FFFA' } }; // 淡藍綠色底
+                cell.font = { bold: true, color: { argb: 'FF2B6CB0' }, size: 10 }; // 藍字
+            } else if (isEven) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7FAFC' } }; // 交錯淡灰底
+            }
+        });
+        dataRow.height = cellHtml.includes("gel-badge") ? 55 : 35; // 如果有果膠提示就加高格子
+    });
+
+    // 5. 寫入總計列 (同步網頁 #CBD5E0 深灰底色)
+    const totalRow = worksheet.addRow([
+        "總計 / 平均",
+        `${document.getElementById('footDistance').innerText} km\n+${document.getElementById('footClimb').innerText}m`,
+        "—",
+        "-",
+        `平均：${document.getElementById('avgWatt').innerText} W`,
+        `平均：${document.getElementById('avgWkg').innerText} W/kg`,
+        "—",
+        document.getElementById('footTime').innerText
+    ]);
+
+    totalRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FF1A365D' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E0' } }; // 總計灰色底
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = thinBorder;
+    });
+    totalRow.height = 30;
+
+    // 6. 導出並下載檔案
+    const buffer = await workbook.xlsx.writeBuffer();
+    const fileName = `西進武嶺配瓦戰術表_${weight}kg_${totalTimeText}.xlsx`;
+    saveAs(new Blob([buffer]), fileName);
+}
+
+// 核心計算公式邏輯 (保持不變)
+function calculateSingleSegmentTime(watt, seg, totalWeight, weight) {
+    let currentWatt = watt;
+    if (isNaN(currentWatt) || currentWatt <= 50) currentWatt = 50; 
+    let gravityWork = (9.81 * totalWeight * seg.climb) / (currentWatt * 0.90); 
+    let rollingWork = (0.005 * 9.81 * totalWeight * seg.dist * 1000) / (currentWatt * 0.90);
+    let weightPenalty = weight > 85 ? (1 + (weight - 85) * 0.002) : 1;
+    return (gravityWork + rollingWork) * seg.dbWeight * weightPenalty;
+}
+
+function formatAccumTime(totalSeconds) {
+    let hrs = Math.floor(totalSeconds / 3600);
+    let mins = Math.floor((totalSeconds % 3600) / 60);
+    let secs = Math.round(totalSeconds % 60);
+    return hrs > 0 ? `${hrs}h ${mins}m ${secs}s` : `${mins}m ${secs}s`;
+}
+
+function updateAllCalculations(mode) {
+    const weight = parseFloat(document.getElementById('weight').value) || 70;
+    const bikeWeight = parseFloat(document.getElementById('bikeWeight').value) || 10;
+    const totalWeight = weight + bikeWeight;
+
+    if (mode === 'reverse') {
+        const tHours = parseFloat(document.getElementById('target_hours').value) || 4;
+        const tMins = parseFloat(document.getElementById('target_minutes').value) || 30;
+        const targetTotalSeconds = (tHours * 3600) + (tMins * 60);
+        let lowBaseWatt = 50, highBaseWatt = 600, estimatedBaseWatt = 180; 
+
+        for (let iter = 0; iter < 25; iter++) {
+            estimatedBaseWatt = (lowBaseWatt + highBaseWatt) / 2;
+            let simulatedTotalSeconds = 0;
+            segmentsData.forEach(seg => {
+                let segWatt = estimatedBaseWatt * seg.ifMod * seg.altitudeEff;
+                simulatedTotalSeconds += calculateSingleSegmentTime(segWatt, seg, totalWeight, weight);
+            });
+            if (simulatedTotalSeconds > targetTotalSeconds) { lowBaseWatt = estimatedBaseWatt; } else { highBaseWatt = estimatedBaseWatt; }
+        }
+        segmentsData.forEach((seg, index) => {
+            let finalSegWatt = Math.round(estimatedBaseWatt * seg.ifMod * seg.altitudeEff);
+            document.getElementById(`watt_${index}`).value = finalSegWatt;
+        });
+    }
+
+    let totalSeconds = 0, totalDistSum = 0, totalClimbSum = 0, totalWattWork = 0;
+
+    segmentsData.forEach((seg, index) => {
+        let currentWatt = parseFloat(document.getElementById(`watt_${index}`).value) || 50;
+        document.getElementById(`wkg_${index}`).innerText = (currentWatt / weight).toFixed(2);
+        let segTimeSeconds = calculateSingleSegmentTime(currentWatt, seg, totalWeight, weight);
+        let previousTotalSeconds = totalSeconds; 
+        totalSeconds += segTimeSeconds;          
+        totalDistSum += seg.dist;
+        totalClimbSum += seg.climb;
+        totalWattWork += currentWatt * segTimeSeconds;
+
+        document.getElementById(`accum_geo_${index}`).innerHTML = `${totalDistSum.toFixed(2)} km<br>+${totalClimbSum}m`;
+        document.getElementById(`time_${index}`).innerText = `${Math.floor(segTimeSeconds / 60)}分 ${Math.round(segTimeSeconds % 60)}秒`;
+
+        let cellContent = formatAccumTime(totalSeconds);
+        for (let gelCount = 1; gelCount <= 10; gelCount++) {
+            let targetGelSeconds = gelCount * 45 * 60; 
+            if (targetGelSeconds > previousTotalSeconds && targetGelSeconds <= totalSeconds) {
+                let gelMinTotal = gelCount * 45;
+                cellContent += `<span class="gel-badge">🧪 第 ${gelCount} 條果膠 (${Math.floor(gelMinTotal / 60) > 0 ? Math.floor(gelMinTotal / 60) + 'h' : ''}${gelMinTotal % 60}m)</span>`;
+            }
+        }
+        document.getElementById(`accum_time_${index}`).innerHTML = cellContent;
+    });
+
+    let calculatedAvgWatt = totalWattWork / totalSeconds;
+    document.getElementById('footDistance').innerText = totalDistSum.toFixed(2);
+    document.getElementById('footClimb').innerText = totalClimbSum;
+    document.getElementById('avgWatt').innerText = Math.round(calculatedAvgWatt);
+    document.getElementById('avgWkg').innerText = (calculatedAvgWatt / weight).toFixed(2);
+     
+    let totalHours = Math.floor(totalSeconds / 3600), totalMinutes = Math.floor((totalSeconds % 3600) / 60);
+    document.getElementById('footTime').innerText = `${totalHours} 小時 ${totalMinutes} 分鐘`;
+    document.getElementById('totalDistance').innerText = totalDistSum.toFixed(2) + " km";
+    document.getElementById('totalClimb').innerText = totalClimbSum + " m";
+    document.getElementById('totalTime').innerText = `${totalHours} 小時 ${totalMinutes} 分鐘`;
+
+    if (mode === 'manual') {
+        document.getElementById('target_hours').value = totalHours;
+        document.getElementById('target_minutes').value = totalMinutes;
+    }
+}
+</script>
+</body>
+</html>
